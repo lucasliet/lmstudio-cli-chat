@@ -34,16 +34,28 @@ lmchat_messages+=("{\"role\": \"user\", \"content\": \"$message\"}")
 messages_json=$(printf "%s," "${lmchat_messages[@]}")
 messages_json="[${messages_json%,}]"
 
-response=$(curl -s -X POST http://localhost:1234/v1/chat/completions \
+temp_response_file=$(mktemp)
+curl -s -N -X POST http://localhost:1234/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "messages": '"$messages_json"',
     "model": "'"$model"'",
-    "temperature": '"$temperature"'
-  }' | jq -r '.choices[0].message.content')
+    "temperature": '"$temperature"',
+    "stream": true
+  }' | while read -r line; do
+    if [[ $line == data:* ]]; then
+      content=$(echo "${line#data: }" | jq -r '.choices[0].delta.content // empty' 2>/dev/null)
+      if [ ! -z "$content" ]; then
+        echo -n "$content"
+        echo -n "$content" >> "$temp_response_file"
+      fi
+    fi
+done
 
-echo "$response"
+echo # Nova linha ao final da resposta
+
+response=$(<"$temp_response_file")
+rm "$temp_response_file"
 
 lmchat_messages+=("{\"role\": \"assistant\", \"content\": \"$response\"}")
-
 printf '%s\n' "${lmchat_messages[@]}" > /tmp/lmchat_messages
