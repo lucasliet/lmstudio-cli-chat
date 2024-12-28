@@ -57,5 +57,9 @@ echo # Nova linha ao final da resposta
 response=$(<"$temp_response_file")
 rm "$temp_response_file"
 
-lmchat_messages+=("{\"role\": \"assistant\", \"content\": \"$response\"}")
+json_message_escape() {
+  echo -n "$1" | jq -s -R -r @json
+}
+
+lmchat_messages+=("{\"role\": \"assistant\", \"content\": $(json_message_escape "$response")}")
 printf '%s\n' "${lmchat_messages[@]}" > /tmp/lmchat_messages
